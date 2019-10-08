@@ -5,12 +5,12 @@ namespace searchabletodo.Models
 {
     public class ItemSearchResults
     {
-        public int TotalCount { get; set; }
+        public long TotalCount { get; set; }
 
         public IEnumerable<Item> Items { get; set; }
 
-        public IEnumerable<Tuple<string, int>> TagCounts { get; set; }
+        public IEnumerable<Tuple<string, long>> TagCounts { get; set; }
 
-        public IEnumerable<Tuple<string, int>> DateCounts { get; set; }
+        public IEnumerable<Tuple<string, long>> DateCounts { get; set; }
    }
 }
