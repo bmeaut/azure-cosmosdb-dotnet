@@ -20,20 +20,20 @@ namespace searchabletodo.Controllers
             return View(results);
         }
 
-        public ActionResult Details(string id)
+        public async Task<ActionResult> Details(string id)
         {
-            Item item = DocumentDBRepository<Item>.Get(x => x.Id == id);
+            Item item = await DocumentDBRepository<Item>.Get(x => x.Id == id);
             return View(item);
         }
 
-        public ActionResult Edit(string id)
+        public async Task<ActionResult> Edit(string id)
         {
             if (id == null)
             {
                 return new HttpStatusCodeResult(HttpStatusCode.BadRequest);
             }
 
-            Item item = DocumentDBRepository<Item>.Get(x => x.Id == id);
+            Item item = await DocumentDBRepository<Item>.Get(x => x.Id == id);
             if (item == null)
             {
                 return HttpNotFound();

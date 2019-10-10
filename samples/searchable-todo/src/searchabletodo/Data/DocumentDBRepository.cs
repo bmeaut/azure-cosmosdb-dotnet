@@ -1,6 +1,6 @@
-﻿using Microsoft.Azure.Documents;
-using Microsoft.Azure.Documents.Client;
-using Microsoft.Azure.Documents.Linq;
+﻿using Microsoft.Azure.Cosmos;
+using Microsoft.Azure.Cosmos.Fluent;
+using searchabletodo.Models;
 using System;
 using System.Collections.Generic;
 using System.Configuration;
@@ -11,164 +11,116 @@ using System.Web;
 
 namespace searchabletodo.Data
 {
-    public static class DocumentDBRepository<T> where T : Document
+    public static class DocumentDBRepository<T>
     {
-        public static T Get(Expression<Func<T, bool>> predicate)
+        public static async Task<T> Get(Expression<Func<T, bool>> predicate)
         {
-            return Client.CreateDocumentQuery<T>(Collection.DocumentsLink)
+            Container c = await GetOrCreateCollection();
+            return c.GetItemLinqQueryable<T>(allowSynchronousQueryExecution: true)
                         .Where(predicate)
                         .AsEnumerable()
                         .FirstOrDefault();
         }
 
-        public static T GetById(string id)
+        public static async Task<T> GetById(string id, string partitionKeyValue)
         {
-            T doc = Client.CreateDocumentQuery<T>(Collection.SelfLink)
-                .Where(d => d.Id == id)
-                .AsEnumerable()
-                .FirstOrDefault();
-
+            Container c = await GetOrCreateCollection();
+            T doc = c.ReadItemAsync<T>(id, new PartitionKey(partitionKeyValue)).Result;
             return doc;
         }
 
-        public static IEnumerable<T> Find(Expression<Func<T, bool>> predicate)
+        public static async Task<IEnumerable<T>> Find(Expression<Func<T, bool>> predicate)
         {
-            var ret = Client.CreateDocumentQuery<T>(Collection.SelfLink)
+            Container c = await GetOrCreateCollection();
+            var ret = c.GetItemLinqQueryable<T>(allowSynchronousQueryExecution: true)
                 .Where(predicate)
-                .AsEnumerable();
+                .ToList();
 
             return ret;
         }
 
         public static async Task<T> CreateAsync(T entity)
         {
-            Document doc = await Client.CreateDocumentAsync(Collection.SelfLink, entity);
-            T ret = (T)(dynamic)doc;
-            return ret;
+            Container c = await GetOrCreateCollection();
+            T doc = await c.CreateItemAsync(entity);
+            return doc;
         }
 
-        public static async Task<Document> UpdateAsync(string id, T entity)
+        public static async Task<T> UpdateAsync(string id, T entity)
         {
-            Document doc = GetById(id);
-            return await Client.ReplaceDocumentAsync(doc.SelfLink, entity);
+            Container c = await GetOrCreateCollection();
+            T doc = await c.ReplaceItemAsync(entity, id);
+            return doc;
         }
 
-        public static async Task DeleteAsync(string id)
+        public static async Task DeleteAsync(string id, string partitionKeyValue)
         {
-            Document doc = GetById(id);
-            await Client.DeleteDocumentAsync(doc.SelfLink);
+            Container c = await GetOrCreateCollection();
+            await c.DeleteItemAsync<T>(id, new PartitionKey(partitionKeyValue));
         }
 
-        private static string databaseId;
-        public static String DatabaseId
-        {
-            get
-            {
-                if (string.IsNullOrEmpty(databaseId))
-                {
+        private static Lazy<string> databaseId =
+            new Lazy<string>(() => ConfigurationManager.AppSettings["docdb-database"]);
+        public static string DatabaseId => databaseId.Value;
+       
+        private static Lazy<string> collectionId = 
+            new Lazy<string>(() => ConfigurationManager.AppSettings["docdb-collection"]);
+        public static string CollectionId => collectionId.Value;
+        
+        private static Lazy<string> partitionKeyPath = 
+            new Lazy<string>(() => ConfigurationManager.AppSettings["docdb-partitionkeypath"]);
+        public static string PartitionKeyPath => partitionKeyPath.Value;
+        
 
-                    databaseId = ConfigurationManager.AppSettings["docdb-database"];
-                }
-
-                return databaseId;
-            }
-        }
-
-        private static string collectionId;
-        public static String CollectionId
-        {
-            get
-            {
-                if (string.IsNullOrEmpty(collectionId))
-                {
-
-                    collectionId = ConfigurationManager.AppSettings["docdb-collection"];
-                }
-
-                return collectionId;
-            }
-        }
 
         private static Database database;
-        private static Database Database
+
+        private static Container collection;
+
+        private static CosmosClient client;
+        private static CosmosClient Client
         {
             get
             {
-                if (database == null)
-                {
 
-                    database = GetOrCreateDatabase(DatabaseId);
-                }
 
-                return database;
-            }
-        }
-
-        private static DocumentCollection collection;
-        private static DocumentCollection Collection
-        {
-            get
-            {
-                if (collection == null)
-                {
-                    collection = GetOrCreateCollection(Database.SelfLink, CollectionId);
-                }
-
-                return collection;
-            }
-        }
-
-        private static DocumentClient client;
-        private static DocumentClient Client
-        {
-            get
-            {
                 if (client == null)
                 {
                     string endpoint = ConfigurationManager.AppSettings["docdb-endpoint"];
                     string authKey = ConfigurationManager.AppSettings["docdb-authKey"];
 
-                    //the UserAgentSuffix on the ConnectionPolicy is being used to enable internal tracking metrics
-                    //this is not requirted when connecting to DocumentDB but could be useful if you, like us, want to run 
-                    //some monitoring tools to track usage by application
-                    ConnectionPolicy connectionPolicy = new ConnectionPolicy {  UserAgentSuffix = " samples-net-searchabletodo/1" };
-                    
-                    client = new DocumentClient(new Uri(endpoint), authKey, connectionPolicy);
+                    client = new CosmosClientBuilder(endpoint, authKey)
+                                .WithApplicationRegion(Regions.WestEurope)
+                                .Build();
                 }
 
                 return client;
             }
         }
 
-        public static DocumentCollection GetOrCreateCollection(string databaseLink, string collectionId)
+        public static async Task<Container> GetOrCreateCollection(string databaseId, string collectionId)
         {
-            var col = Client.CreateDocumentCollectionQuery(databaseLink)
-                              .Where(c => c.Id == collectionId)
-                              .AsEnumerable()
-                              .FirstOrDefault();
-
-            if (col == null)
-            {
-                col = client.CreateDocumentCollectionAsync(databaseLink,
-                    new DocumentCollection { Id = collectionId },
-                    new RequestOptions { OfferType = "S1" }).Result;
-            }
-
-            return col;
+            Database db = Client.GetDatabase(databaseId);
+            return await db.CreateContainerIfNotExistsAsync(collectionId, PartitionKeyPath);
         }
-        public static Database GetOrCreateDatabase(string databaseId)
+
+        public static async Task<Database> GetOrCreateDatabase(string databaseId)
         {
-            var db = Client.CreateDatabaseQuery()
-                            .Where(d => d.Id == databaseId)
-                            .AsEnumerable()
-                            .FirstOrDefault();
+            return await Client.CreateDatabaseIfNotExistsAsync(databaseId);
+        }
 
-            if (db == null)
-            {
-                db = client.CreateDatabaseAsync(new Database { Id = databaseId }).Result;
-            }
+        public static async Task<Container> GetOrCreateCollection()
+        {
+            if (collection == null)
+                collection = await GetOrCreateCollection(DatabaseId, CollectionId);
+            return collection;
+        }
 
-            return db;
+        public static async Task<Database> GetOrCreateDatabase()
+        {
+            if (database == null)
+                database = await GetOrCreateDatabase(DatabaseId);
+            return database;
         }
     }
 }
