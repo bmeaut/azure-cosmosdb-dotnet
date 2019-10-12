@@ -36,7 +36,8 @@ namespace searchabletodo.Data
 
         public static async Task<ItemSearchResults> SearchAsync(string text)
         {
-            const string urlTemplate = "/indexes/todo/docs?facet=dueDate,interval:day&facet=tags&$count=true&&$top=15&search={0}";
+            string urlTemplate
+                = $"/indexes/{indexName}/docs?facet=dueDate,interval:day&facet=tags&$count=true&&$top=15&search={{0}}";
 
             var response = await SendAsync(HttpMethod.Get, string.Format(urlTemplate, Uri.EscapeDataString(text)));
             response.EnsureSuccessStatusCode();
@@ -53,10 +54,10 @@ namespace searchabletodo.Data
 
         public static async Task<string[]> SuggestAsync(string prefix)
         {
-            string url
-                = $"/indexes/{indexName}/docs/suggest?suggesterName=sg&$top=10&searchFields=title&fuzzy=true&search={Uri.EscapeDataString(prefix)}";
+            string urlTemplate
+                = $"/indexes/{indexName}/docs/suggest?suggesterName=sg&$top=10&searchFields=title&fuzzy=true&search={{0}}";
 
-            var response = await SendAsync(HttpMethod.Get, url);
+            var response = await SendAsync(HttpMethod.Get, string.Format(urlTemplate, Uri.EscapeDataString(prefix)));
             response.EnsureSuccessStatusCode();
             var results = JsonConvert.DeserializeObject<dynamic>(await response.Content.ReadAsStringAsync());
 
