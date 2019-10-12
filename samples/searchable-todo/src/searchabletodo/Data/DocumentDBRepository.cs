@@ -58,23 +58,14 @@ namespace searchabletodo.Data
             Container c = await GetOrCreateCollection();
             await c.DeleteItemAsync<T>(id, new PartitionKey(partitionKeyValue));
         }
-
-        private static Lazy<string> databaseId =
-            new Lazy<string>(() => ConfigurationManager.AppSettings["docdb-database"]);
-        public static string DatabaseId => databaseId.Value;
+        
+        public static string DatabaseId => ConfigurationManager.AppSettings["docdb-database"];
        
-        private static Lazy<string> collectionId = 
-            new Lazy<string>(() => ConfigurationManager.AppSettings["docdb-collection"]);
-        public static string CollectionId => collectionId.Value;
+        public static string CollectionId => ConfigurationManager.AppSettings["docdb-collection"];
         
-        private static Lazy<string> partitionKeyPath = 
-            new Lazy<string>(() => ConfigurationManager.AppSettings["docdb-partitionkeypath"]);
-        public static string PartitionKeyPath => partitionKeyPath.Value;
-        
-
-
+        public static string PartitionKeyPath => ConfigurationManager.AppSettings["docdb-partitionkeypath"];
+       
         private static Database database;
-
         private static Container collection;
 
         private static CosmosClient client;
@@ -82,8 +73,6 @@ namespace searchabletodo.Data
         {
             get
             {
-
-
                 if (client == null)
                 {
                     string endpoint = ConfigurationManager.AppSettings["docdb-endpoint"];

@@ -18,6 +18,12 @@ namespace searchabletodo.Data
     {
         private static readonly Uri _serviceRoot;
         private static readonly HttpClient _httpClient;
+        
+        static string dataSourceDBName => ConfigurationManager.AppSettings["search-ixrds"];
+        
+        static string indexName => ConfigurationManager.AppSettings["search-idx"];        
+
+        static string indexerName => ConfigurationManager.AppSettings["search-ixr"];
 
         static ItemSearchRepository()
         {
@@ -47,9 +53,10 @@ namespace searchabletodo.Data
 
         public static async Task<string[]> SuggestAsync(string prefix)
         {
-            const string urlTemplate = "/indexes/todo/docs/suggest?suggesterName=sg&$top=10&searchFields=title&fuzzy=true&search={0}";
+            string url
+                = $"/indexes/{indexName}/docs/suggest?suggesterName=sg&$top=10&searchFields=title&fuzzy=true&search={Uri.EscapeDataString(prefix)}";
 
-            var response = await SendAsync(HttpMethod.Get, String.Format(urlTemplate, Uri.EscapeDataString(prefix)));
+            var response = await SendAsync(HttpMethod.Get, url);
             response.EnsureSuccessStatusCode();
             var results = JsonConvert.DeserializeObject<dynamic>(await response.Content.ReadAsStringAsync());
 
@@ -58,7 +65,7 @@ namespace searchabletodo.Data
 
         public static async Task RunIndexerAsync()
         {
-            var response = await SendAsync(HttpMethod.Post, "/indexers/todoixr/run");
+            var response = await SendAsync(HttpMethod.Post, $"/indexers/{indexerName}/run");
             response.EnsureSuccessStatusCode();
         }
 
@@ -70,19 +77,19 @@ namespace searchabletodo.Data
 
         public static async Task DeleteAll()
         {
-            await SendAsync(HttpMethod.Post, "/indexers/todoixr/reset").ConfigureAwait(false);
-            await SendAsync(HttpMethod.Delete, "/indexers/todoixr").ConfigureAwait(false);
-            await SendAsync(HttpMethod.Delete, "/datasources/tododocdb").ConfigureAwait(false);
-            await SendAsync(HttpMethod.Delete, "/indexes/todo").ConfigureAwait(false);
+            await SendAsync(HttpMethod.Post, $"/indexers/{indexName}/reset").ConfigureAwait(false);
+            await SendAsync(HttpMethod.Delete, $"/indexers/{indexerName}").ConfigureAwait(false);
+            await SendAsync(HttpMethod.Delete, $"/datasources/{dataSourceDBName}").ConfigureAwait(false);
+            await SendAsync(HttpMethod.Delete, $"/indexes/{indexName}").ConfigureAwait(false);
         }
 
         private static async Task CreateToDoIndexAsync()
         {
-            if (!await ResourceExistsAsync("/indexes/todo"))
+            if (!await ResourceExistsAsync($"/indexes/{indexName}"))
             {
                 var index = new
                 {
-                    name = "todo",
+                    name = indexName,
                     fields = new[] 
                     { 
                         new { name = "id", type = "Edm.String",               key = true,  facetable = false, filterable = false, searchable = false, sortable = false },
@@ -114,11 +121,11 @@ namespace searchabletodo.Data
             string collection = ConfigurationManager.AppSettings["docdb-collection"];
 
             // create data source
-            if (!await ResourceExistsAsync("/datasources/tododocdb"))
+            if (!await ResourceExistsAsync($"/datasources/{dataSourceDBName}"))
             {
                 var dataSource = new
                 {
-                    name = "tododocdb",
+                    name = dataSourceDBName,
                     type = "documentdb",
                     credentials = new
                     {
@@ -139,14 +146,14 @@ namespace searchabletodo.Data
             }
 
             // create indexer and schedule it
-            if (!await ResourceExistsAsync("/indexers/todoixr"))
+            if (!await ResourceExistsAsync($"/indexers/{indexerName}"))
             {
                 var indexer = new
                 {
-                    name = "todoixr",
-                    dataSourceName = "tododocdb",
+                    name = indexerName,
+                    dataSourceName = dataSourceDBName,
                     schedule = new { interval = "PT5M" }, // every 5 minutes
-                    targetIndexName = "todo"
+                    targetIndexName = indexName
                 };
 
                 await SendAsync(HttpMethod.Post, "/indexers", JsonConvert.SerializeObject(indexer));
@@ -161,7 +168,7 @@ namespace searchabletodo.Data
 
         private static async Task<HttpResponseMessage> SendAsync(HttpMethod method, string url, string content = null)
         {
-            url += (url.Contains('?') ? "&" : "?") + "api-version=2014-10-20-Preview";
+            url += (url.Contains('?') ? "&" : "?") + "api-version=2019-05-06";
             Uri fullUrl = new Uri(_serviceRoot, url);
             var request = new HttpRequestMessage(method, fullUrl);
             if (content != null)
