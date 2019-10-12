@@ -32,7 +32,7 @@ namespace searchabletodo.Data
         {
             const string urlTemplate = "/indexes/todo/docs?facet=dueDate,interval:day&facet=tags&$count=true&&$top=15&search={0}";
 
-            var response = await SendAsync(HttpMethod.Get, String.Format(urlTemplate, Uri.EscapeDataString(text)));
+            var response = await SendAsync(HttpMethod.Get, string.Format(urlTemplate, Uri.EscapeDataString(text)));
             response.EnsureSuccessStatusCode();
             var results = JsonConvert.DeserializeObject<dynamic>(await response.Content.ReadAsStringAsync());
 
