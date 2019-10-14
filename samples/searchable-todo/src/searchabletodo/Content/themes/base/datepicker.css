@@ -1,5 +1,5 @@
 /*!
- * jQuery UI Datepicker 1.11.3
+ * jQuery UI Datepicker 1.11.4
  * http://jqueryui.com
  *
  * Copyright jQuery Foundation and other contributors
@@ -9,7 +9,7 @@
  * http://api.jqueryui.com/datepicker/#theming
  */
 .ui-datepicker {
-	width: 15em;
+	width: 17em;
 	padding: .2em .2em 0;
 	display: none;
 }
@@ -55,7 +55,7 @@
 	text-align: center;
 }
 .ui-datepicker .ui-datepicker-title select {
-	font-size: .8em;
+	font-size: 1em;
 	margin: 1px 0;
 }
 .ui-datepicker select.ui-datepicker-month,
@@ -64,7 +64,7 @@
 }
 .ui-datepicker table {
 	width: 100%;
-	font-size: .8em;
+	font-size: .9em;
 	border-collapse: collapse;
 	margin: 0 0 .4em;
 }

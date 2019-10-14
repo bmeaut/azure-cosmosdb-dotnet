@@ -6,10 +6,10 @@ using System.ComponentModel.DataAnnotations;
 
 namespace searchabletodo.Models
 {
-    public class Item : Document
+    public class Item
     {
         [JsonProperty(PropertyName = "id")]
-        public override string Id { get; set; }
+        public string Id { get; set; }
 
         [JsonProperty(PropertyName = "title")]
         public string Title { get; set; }
@@ -42,5 +42,6 @@ namespace searchabletodo.Models
 
         [JsonProperty(PropertyName = "tags")]
         public List<string> Tags { get; set; }
+
     }
 }

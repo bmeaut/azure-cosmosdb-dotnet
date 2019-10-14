@@ -12,11 +12,12 @@ namespace searchabletodo.Controllers
 {
     public class ItemController : Controller
     {
-        public ActionResult Index()
+        public async Task<ActionResult> Index()
         {
-            var items = DocumentDBRepository<Item>.Find(i => !i.Completed);
+            var items = await DocumentDBRepository<Item>.Find(i => !i.Completed);
             return View(items);
         }
+
         public ActionResult Create()
         {
             return View();
@@ -41,14 +42,14 @@ namespace searchabletodo.Controllers
             return View(item);
         }
 
-        public ActionResult Edit(string id)
+        public async Task<ActionResult> Edit(string id)
         {
             if (id == null)
             {
                 return new HttpStatusCodeResult(HttpStatusCode.BadRequest);
             }
 
-            Item item = DocumentDBRepository<Item>.Get(x => x.Id == id);
+            Item item = await DocumentDBRepository<Item>.Get(x => x.Id == id);
             if (item == null)
             {
                 return HttpNotFound();
@@ -74,9 +75,9 @@ namespace searchabletodo.Controllers
             return View(item);
         }
 
-        public ActionResult Details(string id)
+        public async Task<ActionResult> Details(string id)
         {
-            Item item = DocumentDBRepository<Item>.Get(x => x.Id == id);
+            Item item = await DocumentDBRepository<Item>.Get(x => x.Id == id);
             return View(item);
         }
     }
