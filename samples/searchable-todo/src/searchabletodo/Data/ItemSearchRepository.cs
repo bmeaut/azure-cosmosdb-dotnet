@@ -28,6 +28,8 @@ namespace searchabletodo.Data
 
         static string indexerName => ConfigurationManager.AppSettings["search-ixr"];
 
+        static string suggesterName => ConfigurationManager.AppSettings["search-sgr"];
+
         static ItemSearchRepository()
         {
             string apiKey = ConfigurationManager.AppSettings["search-authKey"];
@@ -100,7 +102,7 @@ namespace searchabletodo.Data
                 UseFuzzyMatching = true,
                 Top = 10
             };
-            var result = await indexClient.Documents.SuggestAsync(prefix, "sg", sparameters);
+            var result = await indexClient.Documents.SuggestAsync(prefix, suggesterName, sparameters);
             var newResult = result.Results.Select(sr => sr.Text).ToArray();
             return newResult;
         }
@@ -143,7 +145,7 @@ namespace searchabletodo.Data
                     },
                     suggesters = new[] 
                     { 
-                        new { name = "sg", searchMode = "analyzingInfixMatching", sourceFields = new[] { "title", "tags" } }
+                        new { name = suggesterName, searchMode = "analyzingInfixMatching", sourceFields = new[] { "title", "tags" } }
                     },
                     corsOptions = new
                     {
