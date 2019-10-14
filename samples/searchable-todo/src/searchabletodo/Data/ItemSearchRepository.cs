@@ -11,6 +11,8 @@ using Newtonsoft.Json;
 using System.Net;
 using System.Text;
 using Newtonsoft.Json.Linq;
+using Microsoft.Azure.Search.Models;
+using Microsoft.Azure.Search;
 
 namespace searchabletodo.Data
 {
@@ -18,7 +20,8 @@ namespace searchabletodo.Data
     {
         private static readonly Uri _serviceRoot;
         private static readonly HttpClient _httpClient;
-        
+        private static readonly SearchIndexClient indexClient;
+
         static string dataSourceDBName => ConfigurationManager.AppSettings["search-ixrds"];
         
         static string indexName => ConfigurationManager.AppSettings["search-idx"];        
@@ -32,10 +35,13 @@ namespace searchabletodo.Data
 
             _httpClient = new HttpClient();
             _httpClient.DefaultRequestHeaders.Add("api-key", apiKey);
+            indexClient = new SearchIndexClient(_serviceRoot.Host.Split('.')[0], indexName, new SearchCredentials(apiKey));
         }
 
         public static async Task<ItemSearchResults> SearchAsync(string text)
         {
+            #region original
+            /*
             string urlTemplate
                 = $"/indexes/{indexName}/docs?facet=dueDate,interval:day&facet=tags&$count=true&&$top=15&search={{0}}";
 
@@ -50,10 +56,34 @@ namespace searchabletodo.Data
                 TagCounts = ((IEnumerable<dynamic>)results["@search.facets"].tags).Select(f => Tuple.Create((string)f.value, (int)f.count)),
                 DateCounts = ((IEnumerable<dynamic>)results["@search.facets"].dueDate).Select(f => Tuple.Create((string)f.value, (int)f.count))
             };
+            */
+            #endregion
+
+            Func<DocumentSearchResult<Item>, string, IEnumerable<Tuple<string, long>>> facetConverter =
+               (r, k) => r.Facets[k].Select(fr => new Tuple<string, long>(fr.Value.ToString(), fr.Count.Value));
+
+            SearchParameters sparams = new SearchParameters
+            {
+                Facets = new[] { "dueDate,interval:day", "tags" },
+                IncludeTotalResultCount = true,
+                Top = 15
+            };
+            var result = await indexClient.Documents.SearchAsync<Item>(text, sparams);
+            var newResult = new ItemSearchResults
+            {
+                TotalCount = result.Count.Value,
+                Items = result.Results.Select(sr => sr.Document),
+                TagCounts = facetConverter(result, "tags"),
+                DateCounts = facetConverter(result, "dueDate")
+            };
+            return newResult;
+
         }
 
         public static async Task<string[]> SuggestAsync(string prefix)
         {
+            #region original
+            /*
             string urlTemplate
                 = $"/indexes/{indexName}/docs/suggest?suggesterName=sg&$top=10&searchFields=title&fuzzy=true&search={{0}}";
 
@@ -62,6 +92,17 @@ namespace searchabletodo.Data
             var results = JsonConvert.DeserializeObject<dynamic>(await response.Content.ReadAsStringAsync());
 
             return ((IEnumerable<dynamic>)results.value).Select(s => (string)s["@search.text"]).ToArray();
+            */
+            #endregion
+            SuggestParameters sparameters = new SuggestParameters
+            {
+                SearchFields = new[] { "title" },
+                UseFuzzyMatching = true,
+                Top = 10
+            };
+            var result = await indexClient.Documents.SuggestAsync(prefix, "sg", sparameters);
+            var newResult = result.Results.Select(sr => sr.Text).ToArray();
+            return newResult;
         }
 
         public static async Task RunIndexerAsync()
